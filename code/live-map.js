@@ -78,10 +78,11 @@
     return COLORS.find(c => !used.includes(c)) || COLORS[state.trackers.length % COLORS.length];
   }
 
-  function addTrackerToState(label, session_id, token, color, id) {
+  function addTrackerToState(label, session_id, token, color, id, walkieChannel) {
     const tracker = {
       id: id || (Date.now() + '-' + Math.random().toString(36).slice(2, 7)),
       label, session_id, token,
+      walkieChannel: walkieChannel || null,
       color: color || nextColor(),
       points: [],
       polyline: null,
@@ -230,6 +231,7 @@
           <span>${t.lastUpdate ? timeAgo(t.lastUpdate) : (t.error || 'en attente')}</span>
           <button class="remove-btn" data-id="${t.id}">retirer</button>
         </div>
+        ${t.walkieChannel ? `<a class="walkie-btn" href="https://walkie.gcourtot.fr/send/${encodeURIComponent(t.walkieChannel)}" target="_blank" rel="noopener">🎙️ Envoyer un message vocal à ${escapeHtml(t.label)}</a>` : ''}
       `;
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-btn')) return;
@@ -294,9 +296,12 @@
       const data = await res.json();
       const runners = data.runners || [];
       runners.forEach(r => {
-        const exists = state.trackers.some(t => t.session_id === r.session_id && t.token === r.token);
-        if (!exists) {
-          addTrackerToState(r.label, r.session_id, r.token);
+        const existing = state.trackers.find(t => t.session_id === r.session_id && t.token === r.token);
+        if (!existing) {
+          addTrackerToState(r.label, r.session_id, r.token, null, null, r.walkie_channel);
+        } else {
+          // Le channel walkie peut avoir été ajouté/modifié depuis le dernier sync
+          existing.walkieChannel = r.walkie_channel || null;
         }
       });
       renderSidebar();
