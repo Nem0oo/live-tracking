@@ -1,4 +1,4 @@
-name: Carbo calculator CI
+name: Live tracking mapo CI
 
 on:
   push:
@@ -23,13 +23,13 @@ jobs:
         with:
           context: .
           load: true
-          tags: carbo
+          tags: tracking
           build-args: SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Running container
         run: |
-          docker run -d --name carbo -p 8080:80 carbo
+          docker run -d --name tracking -p 8080:80 tracking
       - name: Wait for Apache
         run: sleep 2
       - name: Test title
@@ -37,7 +37,7 @@ jobs:
           curl -s http://localhost:8080/version.txt | grep -q ${{ github.sha }}
       - name: Stop container
         run: |
-          docker stop carbo
+          docker stop tracking
 
   build_and_push_to_docker_hub:
     if: github.event_name == 'push'
@@ -55,21 +55,21 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Tag previous
         run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/carbo:latest && \
-          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/carbo:latest ${{ secrets.DOCKERHUB_USERNAME }}/carbo:previous && \
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/carbo:previous || true
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tracking:latest && \
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/tracking:latest ${{ secrets.DOCKERHUB_USERNAME }}/tracking:previous && \
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/tracking:previous || true
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/carbo:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tracking:latest
           build-args: SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Push Docker image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/carbo:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/tracking:latest
 
   trigger_watchtower:
     if: github.event_name == 'push'
@@ -90,7 +90,7 @@ jobs:
       - name: Test version
         run: |
           for i in {1..10}; do
-            curl -sf https://carbo.gcourtot.fr/version.txt | grep -q ${{ github.sha }} && exit 0
+            curl -sf https://tracking.gcourtot.fr/version.txt | grep -q ${{ github.sha }} && exit 0
             sleep 10
           done
           exit 1
@@ -107,9 +107,9 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Rollback image
         run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/carbo:previous
-          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/carbo:previous ${{ secrets.DOCKERHUB_USERNAME }}/carbo:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/carbo:latest
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tracking:previous
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/tracking:previous ${{ secrets.DOCKERHUB_USERNAME }}/tracking:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/tracking:latest
       - name: Trigger deploy via n8n
         run: |
           curl -H "Content-Type: application/json" "https://n8n.gcourtot.fr/webhook/${{ secrets.N8N_WEBHOOK_ID }}"
