@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Suivi live</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live-map.css" />
+</head>
+<body>
+
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>Suivi live</h1>
+      <p id="header-sub">Aucun coureur suivi</p>
+    </div>
+    <div id="tracker-list">
+      <div id="empty-state">
+        Ajoute un lien LiveTrack Garmin pour commencer à suivre une course. Plusieurs coureurs peuvent être suivis en même temps.
+      </div>
+    </div>
+    <div id="sidebar-footer">
+      <span id="poll-status">—</span>
+      <button id="config-btn">Intervalle de poll</button>
+    </div>
+  </div>
+  <div id="map"></div>
+  
+</div>
+
+<div id="sheet-backdrop">
+  <div id="sheet">
+    <h2 id="sheet-title">Réglages</h2>
+    <div id="config-fields" style="display:block;">
+      <div class="field">
+        <label for="in-interval">Intervalle de poll (secondes)</label>
+        <input id="in-interval" type="number" min="5" value="20" />
+      </div>
+    </div>
+    <div id="sheet-error"></div>
+    <div class="sheet-actions">
+      <button class="btn btn-secondary" id="sheet-cancel">Annuler</button>
+      <button class="btn btn-primary" id="sheet-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="live-map.js"></script>
+</body>
+</html>
