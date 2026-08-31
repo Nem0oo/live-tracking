@@ -111,7 +111,6 @@
 
   // ---------- Polling ----------
   async function pollTracker(t) {
-    if (!state.proxyBase) return;
     const hadNoPoints = t.points.length === 0;
     const lastPointTs = t.points.length ? t.points[t.points.length - 1].t : '1970-01-01T00:00:00.000Z';
     const url = `${webhookUrl('livetrack-proxy')}?session_id=${encodeURIComponent(t.session_id)}&token=${encodeURIComponent(t.token)}&begin=${encodeURIComponent(lastPointTs)}`;
