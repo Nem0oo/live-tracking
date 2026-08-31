@@ -229,7 +229,6 @@
         </div>
         <div class="tracker-meta">
           <span>${t.lastUpdate ? timeAgo(t.lastUpdate) : (t.error || 'en attente')}</span>
-          <button class="remove-btn" data-id="${t.id}">retirer</button>
         </div>
         ${t.walkieChannel ? `<a class="walkie-btn" href="https://walkie.gcourtot.fr/send/${encodeURIComponent(t.walkieChannel)}" target="_blank" rel="noopener">🎙️ Envoyer un message vocal à ${escapeHtml(t.label)}</a>` : ''}
       `;
