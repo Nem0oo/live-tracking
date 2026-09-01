@@ -99,6 +99,19 @@
     color: var(--ink-dim);
     flex-shrink: 0;
   }
+  .walkie-icon-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #2A3624;
+    border: 1px solid var(--panel-hair);
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .walkie-icon-btn:hover { background: #33422F; }
   .tracker-status.ended { background: #3A2624; color: #E0958D; }
   .tracker-status.error { background: #3A2624; color: #E0958D; }
   .tracker-stats {
@@ -292,8 +305,9 @@
   }
 
   @media (max-width: 720px) {
-    #sidebar { position: absolute; z-index: 900; height: 42%; max-height: 42%; width: 100%; min-width: 0; bottom: 0; border-right: none; border-top: 1px solid var(--panel-hair); }
+    #sidebar { position: absolute; z-index: 900; height: auto; max-height: 70vh; width: 100%; min-width: 0; bottom: 0; border-right: none; border-top: 1px solid var(--panel-hair); }
     #map { height: 100%; }
+    #tracker-list { flex: 0 1 auto; }
 
     #sidebar-header { padding: 10px 16px 8px; }
     #sidebar-header h1 { font-size: 15px; }
@@ -302,6 +316,7 @@
     .tracker-row { padding: 9px 16px; }
     .tracker-top { margin-bottom: 8px; }
     .tracker-name { font-size: 13px; }
+    .walkie-icon-btn { display: flex; }
 
     /* Collapsed by default on mobile: only the tap-to-expand top row shows */
     .tracker-row:not(.selected) .tracker-top { margin-bottom: 0; }
@@ -311,4 +326,6 @@
     .tracker-row:not(.selected) .walkie-btn {
       display: none;
     }
+    /* Avoid duplicating the walkie action once the full button is shown below */
+    .tracker-row.selected .walkie-icon-btn { display: none; }
   }

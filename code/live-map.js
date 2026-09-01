@@ -220,6 +220,7 @@
           <div class="tracker-name">${escapeHtml(t.label)}</div>
           <div class="tracker-quick">${stats.distanceKm} km</div>
           <div class="tracker-status${t.status === 'terminée' ? ' ended' : ''}${t.status === 'erreur' ? ' error' : ''}">${t.status}</div>
+          ${t.walkieChannel ? `<a class="walkie-icon-btn" href="https://walkie.gcourtot.fr/send/${encodeURIComponent(t.walkieChannel)}" target="_blank" rel="noopener" title="Envoyer un message vocal à ${escapeHtml(t.label)}">🎙️</a>` : ''}
         </div>
         <div class="tracker-stats">
           <div><div class="stat-num">${stats.distanceKm}</div><div class="stat-label">km</div></div>
@@ -234,7 +235,7 @@
         ${t.walkieChannel ? `<a class="walkie-btn" href="https://walkie.gcourtot.fr/send/${encodeURIComponent(t.walkieChannel)}" target="_blank" rel="noopener">🎙️ Envoyer un message vocal à ${escapeHtml(t.label)}</a>` : ''}
       `;
       row.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-btn')) return;
+        if (e.target.closest('.remove-btn') || e.target.closest('.walkie-icon-btn')) return;
         const isMobile = window.matchMedia('(max-width: 720px)').matches;
         if (isMobile && selectedId === t.id) {
           selectedId = null;
