@@ -89,6 +89,15 @@
     color: var(--ink);
     background: #33422F;
     letter-spacing: 0.02em;
+    flex-shrink: 0;
+  }
+  .tracker-quick {
+    display: none;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--ink-dim);
+    flex-shrink: 0;
   }
   .tracker-status.ended { background: #3A2624; color: #E0958D; }
   .tracker-status.error { background: #3A2624; color: #E0958D; }
@@ -283,6 +292,23 @@
   }
 
   @media (max-width: 720px) {
-    #sidebar { position: absolute; z-index: 900; height: 40%; width: 100%; min-width: 0; bottom: 0; border-right: none; border-top: 1px solid var(--panel-hair); }
+    #sidebar { position: absolute; z-index: 900; height: 42%; max-height: 42%; width: 100%; min-width: 0; bottom: 0; border-right: none; border-top: 1px solid var(--panel-hair); }
     #map { height: 100%; }
+
+    #sidebar-header { padding: 10px 16px 8px; }
+    #sidebar-header h1 { font-size: 15px; }
+    #sidebar-header p { font-size: 11px; }
+
+    .tracker-row { padding: 9px 16px; }
+    .tracker-top { margin-bottom: 8px; }
+    .tracker-name { font-size: 13px; }
+
+    /* Collapsed by default on mobile: only the tap-to-expand top row shows */
+    .tracker-row:not(.selected) .tracker-top { margin-bottom: 0; }
+    .tracker-row:not(.selected) .tracker-quick { display: block; }
+    .tracker-row:not(.selected) .tracker-stats,
+    .tracker-row:not(.selected) .tracker-meta,
+    .tracker-row:not(.selected) .walkie-btn {
+      display: none;
+    }
   }

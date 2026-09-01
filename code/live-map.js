@@ -218,6 +218,7 @@
         <div class="tracker-top">
           <div class="swatch" style="background:${t.color}"></div>
           <div class="tracker-name">${escapeHtml(t.label)}</div>
+          <div class="tracker-quick">${stats.distanceKm} km</div>
           <div class="tracker-status${t.status === 'terminée' ? ' ended' : ''}${t.status === 'erreur' ? ' error' : ''}">${t.status}</div>
         </div>
         <div class="tracker-stats">
@@ -234,6 +235,12 @@
       `;
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-btn')) return;
+        const isMobile = window.matchMedia('(max-width: 720px)').matches;
+        if (isMobile && selectedId === t.id) {
+          selectedId = null;
+          renderSidebar();
+          return;
+        }
         selectedId = t.id;
         renderSidebar();
         if (t.points.length) {
