@@ -34,14 +34,30 @@
 <div id="sheet-backdrop">
   <div id="sheet">
     <h2 id="sheet-title">Réglages</h2>
-    <div id="config-fields" style="display:block;">
+    <div id="config-fields">
       <div class="field">
         <label for="in-interval">Intervalle de poll (secondes)</label>
         <input id="in-interval" type="number" min="5" value="20" />
       </div>
     </div>
+    <div id="walkie-fields" hidden>
+      <div class="field">
+        <label for="walkie-sender">Votre nom (optionnel)</label>
+        <input id="walkie-sender" type="text" maxlength="40" placeholder="Anonyme" />
+      </div>
+      <div class="recorder">
+        <button type="button" id="walkie-record-btn" class="btn btn-primary record-btn">Enregistrer</button>
+        <p id="walkie-timer" class="timer" hidden>0:00 / 2:00</p>
+      </div>
+      <audio id="walkie-preview" hidden controls></audio>
+      <div id="walkie-review-actions" class="sheet-actions" hidden>
+        <button type="button" id="walkie-discard-btn" class="btn btn-secondary">Recommencer</button>
+        <button type="button" id="walkie-send-btn" class="btn btn-primary">Envoyer</button>
+      </div>
+      <p id="walkie-status" class="field-hint"></p>
+    </div>
     <div id="sheet-error"></div>
-    <div class="sheet-actions">
+    <div class="sheet-actions" id="sheet-actions-main">
       <button class="btn btn-secondary" id="sheet-cancel">Annuler</button>
       <button class="btn btn-primary" id="sheet-save">Enregistrer</button>
     </div>
