@@ -1,6 +1,8 @@
 (function () {
   // ⚠️ À ajuster : domaine du conteneur n8n qui expose les webhooks livetrack-proxy / livetrack-runners.
   const PROXY_BASE = 'https://n8n.gcourtot.fr';
+  // Backend du service de messages vocaux (projet séparé "VoiceMessage" / walkie).
+  const WALKIE_BASE = 'https://walkie.gcourtot.fr';
 
   const COLORS = ['#C97A34', '#8FA283', '#5B9BD5', '#D5A85B', '#B57ADB', '#5BC0AE', '#D5715B', '#7A96D5'];
 
@@ -220,7 +222,7 @@
           <div class="tracker-name">${escapeHtml(t.label)}</div>
           <div class="tracker-quick">${stats.distanceKm} km</div>
           <div class="tracker-status${t.status === 'terminée' ? ' ended' : ''}${t.status === 'erreur' ? ' error' : ''}">${t.status}</div>
-          ${t.walkieChannel ? `<a class="walkie-icon-btn" href="https://walkie.gcourtot.fr/send/${encodeURIComponent(t.walkieChannel)}" target="_blank" rel="noopener" title="Envoyer un message vocal à ${escapeHtml(t.label)}">🎙️</a>` : ''}
+          ${t.walkieChannel ? `<button type="button" class="walkie-icon-btn" title="Envoyer un message vocal à ${escapeHtml(t.label)}">🎙️</button>` : ''}
         </div>
         <div class="tracker-stats">
           <div><div class="stat-num">${stats.distanceKm}</div><div class="stat-label">km</div></div>
@@ -232,10 +234,10 @@
           <span>${t.lastUpdate ? timeAgo(t.lastUpdate) : (t.error || 'en attente')}</span>
           <button class="remove-btn" data-id="${t.id}">retirer</button>
         </div>
-        ${t.walkieChannel ? `<a class="walkie-btn" href="https://walkie.gcourtot.fr/send/${encodeURIComponent(t.walkieChannel)}" target="_blank" rel="noopener">🎙️ Envoyer un message vocal à ${escapeHtml(t.label)}</a>` : ''}
+        ${t.walkieChannel ? `<button type="button" class="walkie-btn">🎙️ Envoyer un message vocal à ${escapeHtml(t.label)}</button>` : ''}
       `;
       row.addEventListener('click', (e) => {
-        if (e.target.closest('.remove-btn') || e.target.closest('.walkie-icon-btn')) return;
+        if (e.target.closest('.remove-btn') || e.target.closest('.walkie-icon-btn') || e.target.closest('.walkie-btn')) return;
         const isMobile = window.matchMedia('(max-width: 720px)').matches;
         if (isMobile && selectedId === t.id) {
           selectedId = null;
@@ -247,6 +249,12 @@
         if (t.points.length) {
           map.fitBounds(t.polyline.getBounds(), { padding: [40, 40], maxZoom: 16 });
         }
+      });
+      row.querySelectorAll('.walkie-icon-btn, .walkie-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openWalkieSheet(t);
+        });
       });
       list.appendChild(row);
     });
@@ -265,21 +273,205 @@
     return { session_id: m[1], token: m[2] };
   }
 
-  // ---------- Sheet (add tracker / config) ----------
+  // ---------- Sheet (config / message vocal) ----------
   const backdrop = document.getElementById('sheet-backdrop');
   const sheetError = document.getElementById('sheet-error');
+  const sheetTitle = document.getElementById('sheet-title');
+  const configFields = document.getElementById('config-fields');
+  const walkieFields = document.getElementById('walkie-fields');
+  const sheetSaveBtn = document.getElementById('sheet-save');
+  const sheetCancelBtn = document.getElementById('sheet-cancel');
 
   function openSheet() {
+    abortWalkieRecording();
+    resetWalkieRecorder();
     sheetError.style.display = 'none';
+    sheetTitle.textContent = 'Réglages';
+    configFields.hidden = false;
+    walkieFields.hidden = true;
+    sheetSaveBtn.hidden = false;
+    sheetCancelBtn.textContent = 'Annuler';
     document.getElementById('in-interval').value = state.pollIntervalSec;
     backdrop.dataset.mode = 'config';
     backdrop.classList.add('open');
   }
-  function closeSheet() { backdrop.classList.remove('open'); }
+  function closeSheet() {
+    backdrop.classList.remove('open');
+    if (backdrop.dataset.mode === 'walkie') {
+      abortWalkieRecording();
+      resetWalkieRecorder();
+    }
+  }
 
   document.getElementById('config-btn').addEventListener('click', () => openSheet());
   document.getElementById('sheet-cancel').addEventListener('click', closeSheet);
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSheet(); });
+
+  // ---------- Message vocal (enregistrement + envoi, in-page) ----------
+  const WALKIE_MAX_DURATION_SECONDS = 120;
+  const WALKIE_AUDIO_BITS_PER_SECOND = 24000;
+  const WALKIE_MIME_CANDIDATES = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+  const WALKIE_SENDER_KEY = 'walkie:sender-name';
+
+  const walkieSenderInput = document.getElementById('walkie-sender');
+  const walkieRecordBtn = document.getElementById('walkie-record-btn');
+  const walkieTimerEl = document.getElementById('walkie-timer');
+  const walkiePreview = document.getElementById('walkie-preview');
+  const walkieReviewActions = document.getElementById('walkie-review-actions');
+  const walkieSendBtn = document.getElementById('walkie-send-btn');
+  const walkieDiscardBtn = document.getElementById('walkie-discard-btn');
+  const walkieStatus = document.getElementById('walkie-status');
+
+  let walkieChannel = null;
+  let walkieStream = null;
+  let walkieMediaRecorder = null;
+  let walkieChunks = [];
+  let walkieRecordedBlob = null;
+  let walkieStartedAt = 0;
+  let walkieTimerHandle = null;
+  let walkieAutoStopHandle = null;
+
+  walkieSenderInput.value = localStorage.getItem(WALKIE_SENDER_KEY) ?? '';
+  walkieSenderInput.addEventListener('change', () => {
+    localStorage.setItem(WALKIE_SENDER_KEY, walkieSenderInput.value.trim());
+  });
+
+  function pickWalkieMimeType() {
+    return WALKIE_MIME_CANDIDATES.find(type => window.MediaRecorder?.isTypeSupported?.(type)) ?? '';
+  }
+  function formatWalkieTime(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+  function updateWalkieTimer() {
+    const elapsed = (Date.now() - walkieStartedAt) / 1000;
+    walkieTimerEl.textContent = `${formatWalkieTime(elapsed)} / ${formatWalkieTime(WALKIE_MAX_DURATION_SECONDS)}`;
+  }
+
+  async function startWalkieRecording() {
+    walkieStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = pickWalkieMimeType();
+    walkieMediaRecorder = new MediaRecorder(walkieStream, mimeType ? { mimeType, audioBitsPerSecond: WALKIE_AUDIO_BITS_PER_SECOND } : {});
+    walkieChunks = [];
+    walkieMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) walkieChunks.push(e.data); };
+    walkieMediaRecorder.onstop = () => {
+      walkieStream.getTracks().forEach(tr => tr.stop());
+      walkieStream = null;
+      walkieRecordedBlob = new Blob(walkieChunks, { type: walkieMediaRecorder.mimeType || mimeType || 'audio/webm' });
+      walkiePreview.src = URL.createObjectURL(walkieRecordedBlob);
+      walkiePreview.hidden = false;
+      walkieReviewActions.hidden = false;
+      walkieRecordBtn.hidden = true;
+    };
+    walkieMediaRecorder.start();
+    walkieStartedAt = Date.now();
+    walkieTimerEl.hidden = false;
+    updateWalkieTimer();
+    walkieTimerHandle = setInterval(updateWalkieTimer, 500);
+    walkieAutoStopHandle = setTimeout(stopWalkieRecording, WALKIE_MAX_DURATION_SECONDS * 1000);
+    walkieRecordBtn.textContent = 'Arrêter';
+    walkieRecordBtn.classList.add('recording');
+  }
+
+  function stopWalkieRecording() {
+    clearInterval(walkieTimerHandle);
+    clearTimeout(walkieAutoStopHandle);
+    if (walkieMediaRecorder && walkieMediaRecorder.state !== 'inactive') walkieMediaRecorder.stop();
+  }
+
+  // Coupe court sans mettre à jour l'UI (sheet en train de se fermer) : évite que le
+  // onstop asynchrone de startWalkieRecording ne réaffiche la preview après un reset.
+  function abortWalkieRecording() {
+    clearInterval(walkieTimerHandle);
+    clearTimeout(walkieAutoStopHandle);
+    if (walkieMediaRecorder) {
+      walkieMediaRecorder.onstop = null;
+      if (walkieMediaRecorder.state !== 'inactive') walkieMediaRecorder.stop();
+      walkieMediaRecorder = null;
+    }
+    if (walkieStream) {
+      walkieStream.getTracks().forEach(tr => tr.stop());
+      walkieStream = null;
+    }
+  }
+
+  function resetWalkieRecorder() {
+    walkieRecordedBlob = null;
+    walkiePreview.hidden = true;
+    walkiePreview.removeAttribute('src');
+    walkieReviewActions.hidden = true;
+    walkieRecordBtn.hidden = false;
+    walkieRecordBtn.disabled = false;
+    walkieRecordBtn.textContent = 'Enregistrer';
+    walkieRecordBtn.classList.remove('recording');
+    walkieTimerEl.hidden = true;
+    walkieStatus.textContent = '';
+  }
+
+  walkieRecordBtn.addEventListener('click', async () => {
+    if (!walkieMediaRecorder || walkieMediaRecorder.state === 'inactive') {
+      walkieRecordBtn.disabled = true;
+      try {
+        await startWalkieRecording();
+      } catch (e) {
+        walkieStatus.textContent = "Impossible d'accéder au microphone.";
+      } finally {
+        walkieRecordBtn.disabled = false;
+      }
+    } else {
+      stopWalkieRecording();
+    }
+  });
+  walkieDiscardBtn.addEventListener('click', resetWalkieRecorder);
+
+  async function uploadWalkieRecording() {
+    if (!walkieRecordedBlob || !walkieChannel) return;
+    walkieSendBtn.disabled = true;
+    walkieDiscardBtn.disabled = true;
+    walkieStatus.textContent = 'Envoi en cours…';
+    try {
+      const form = new FormData();
+      const ext = (walkieRecordedBlob.type.split('/')[1] || 'webm').split(';')[0];
+      form.append('audio', walkieRecordedBlob, `recording.${ext}`);
+      form.append('sender', walkieSenderInput.value.trim());
+      const res = await fetch(`${WALKIE_BASE}/channels/${encodeURIComponent(walkieChannel)}/messages`, { method: 'POST', body: form });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      resetWalkieRecorder();
+      walkieStatus.textContent = 'Message envoyé !';
+    } catch (e) {
+      walkieStatus.textContent = "Échec de l'envoi. Vérifie ta connexion et réessaie.";
+    } finally {
+      walkieSendBtn.disabled = false;
+      walkieDiscardBtn.disabled = false;
+    }
+  }
+  walkieSendBtn.addEventListener('click', uploadWalkieRecording);
+
+  async function openWalkieSheet(t) {
+    abortWalkieRecording();
+    resetWalkieRecorder();
+    walkieChannel = t.walkieChannel;
+    sheetError.style.display = 'none';
+    sheetTitle.textContent = `Message vocal — ${t.label}`;
+    configFields.hidden = true;
+    walkieFields.hidden = false;
+    sheetSaveBtn.hidden = true;
+    sheetCancelBtn.textContent = 'Fermer';
+    backdrop.dataset.mode = 'walkie';
+    backdrop.classList.add('open');
+
+    walkieRecordBtn.disabled = true;
+    walkieStatus.textContent = 'Vérification du lien…';
+    try {
+      const res = await fetch(`${WALKIE_BASE}/channels/${encodeURIComponent(walkieChannel)}`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      walkieStatus.textContent = '';
+      walkieRecordBtn.disabled = false;
+    } catch (e) {
+      walkieStatus.textContent = 'Lien invalide ou expiré.';
+    }
+  }
 
   document.getElementById('sheet-save').addEventListener('click', async () => {
     {
